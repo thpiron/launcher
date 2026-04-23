@@ -40,6 +40,13 @@ type VolumeObject struct {
 	Volume Volume `yaml:"volume"`
 }
 
+type Secret struct {
+	ID     string `yaml:"id,omitempty"`
+	Env    string `yaml:"env,omitempty"`
+	Src    string `yaml:"src,omitempty"`
+	Target string `yaml:"target,omitempty"`
+}
+
 type Config struct {
 	Name          string `yaml:"-"`
 	rawYaml       []string
@@ -54,6 +61,7 @@ type Config struct {
 	Env           map[string]string `yaml:"env,omitempty"`
 	Labels        map[string]string `yaml:"labels,omitempty"`
 	Volumes       []VolumeObject    `yaml:"volumes,omitempty"`
+	Secrets       []Secret          `yaml:"secrets,omitempty"`
 	Links         []struct {
 		Link struct {
 			Name  string `yaml:"name"`
@@ -122,10 +130,6 @@ func LoadConfig(dir string, configName string, includeTemplates bool, templatesD
 
 	config.rawYaml = append(config.rawYaml, string(content[:]))
 
-	if err != nil {
-		return nil, err
-	}
-
 	for k, v := range config.Labels {
 		val := strings.ReplaceAll(v, "{{config}}", config.Name)
 		config.Labels[k] = val
@@ -138,6 +142,10 @@ func LoadConfig(dir string, configName string, includeTemplates bool, templatesD
 
 	if config.BaseImage == "" {
 		return nil, errors.New("no base image specified in config, set base image with `base_image: {imagename}`")
+	}
+
+	if err := config.validateSecrets(); err != nil {
+		return nil, err
 	}
 
 	return config, nil
@@ -185,6 +193,16 @@ func (config *Config) Dockerfile(pupsArgs string, bakeEnv bool, mountVolumes boo
 			builder.WriteString("--mount=type=bind,from=volume_" + strconv.Itoa(i) + ",source=/,target=" + v.Volume.Guest + ",rw=true ")
 		}
 	}
+
+	// add secret mounts if any secrets exist
+	for _, secret := range config.Secrets {
+		builder.WriteString("--mount=type=secret,id=" + secret.ID)
+		if secret.Target != "" {
+			builder.WriteString(",target=" + secret.Target)
+		}
+		builder.WriteString(" ")
+	}
+
 	builder.WriteString(
 		"cat /temp-config.yaml | /usr/local/bin/pups " + pupsArgs + " --stdin " +
 			"&& rm /temp-config.yaml\n")
@@ -249,6 +267,18 @@ func (config *Config) dockerfileDefaultEnvs() string {
 	}
 	slices.Sort(builder)
 	return strings.Join(builder, "\n")
+}
+
+func (config *Config) validateSecrets() error {
+	for i, secret := range config.Secrets {
+		if secret.ID == "" {
+			return fmt.Errorf("secret at index %d must define an id", i)
+		}
+		if secret.Env != "" && secret.Src != "" {
+			return fmt.Errorf("secret %q cannot define both env and src", secret.ID)
+		}
+	}
+	return nil
 }
 
 func (config *Config) dockerfileArgs() string {

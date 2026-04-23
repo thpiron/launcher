@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/discourse/launcher/v2/config"
@@ -52,6 +54,9 @@ func (r *DockerBuildCmd) Run(cli *Cli, ctx context.Context) error {
 		ImageTag:     r.Tag,
 		ExtraFlags:   r.ExtraFlags,
 		MountVolumes: r.MountVolumes,
+	}
+	if builder.ExtraFlags != nil && slices.Contains(builder.ExtraFlags, "--secret") && len(config.Secrets) == 0 {
+		fmt.Fprintln(utils.Out, "Warning: you must declare your secrets in the configuration file under `secrets`.")
 	}
 	if err := builder.Run(ctx); err != nil {
 		if configErr := config.ValidateConfig(err); configErr != nil {

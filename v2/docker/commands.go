@@ -64,6 +64,23 @@ func (r *DockerBuilder) Run(ctx context.Context) error {
 		}
 	}
 
+	if slices.ContainsFunc(r.ExtraFlags, func(flag string) bool {
+		return flag == "--secret" || strings.HasPrefix(flag, "--secret=")
+	}) {
+		for _, secret := range r.Config.Secrets {
+			secretFlag := "id=" + secret.ID
+			if secret.Env != "" {
+				secretFlag += ",env=" + secret.Env
+			}
+			if secret.Src != "" {
+				secretFlag += ",src=" + secret.Src
+			}
+			cmd.Args = append(cmd.Args, "--secret", secretFlag)
+		}
+	} else {
+		fmt.Fprintln(utils.Out, "Warning: secrets are defined in config file but no --secret flag is provided") //nolint:errcheck
+	}
+
 	cmd.Args = append(cmd.Args, r.ExtraFlags...)
 	cmd.Args = append(cmd.Args, "-f")
 	cmd.Args = append(cmd.Args, "-")

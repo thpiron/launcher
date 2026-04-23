@@ -44,6 +44,8 @@ var _ = Describe("Build", func() {
 			Expect(cmd.String()).To(ContainSubstring("docker build"))
 			//secret build args envs are ignored
 			Expect(cmd.String()).ToNot(ContainSubstring("--build-arg DISCOURSE_DB_PASSWORD"))
+			Expect(cmd.String()).ToNot(ContainSubstring("--secret id=DISCOURSE_DB_PASSWORD"))
+			Expect(cmd.String()).To(ContainSubstring("--secret id=discourse-smtp-password,env=DISCOURSE_SMTP_PASSWORD"))
 			Expect(cmd.String()).To(ContainSubstring("--build-arg RUBY_GC_HEAP_INIT_SLOTS"))
 			Expect(cmd.Dir).To(Equal(testDir))
 
@@ -175,6 +177,14 @@ var _ = Describe("Build", func() {
 			Expect(len(RanCmds)).To(Equal(1))
 			checkBuildCmd(RanCmds[0])
 			Expect(RanCmds[0].String()).To(ContainSubstring("--platform linux/amd64,linux/arm64"))
+		})
+
+		It("Should skip configured secrets when extra args already include --secret", func() {
+			runner := ddocker.DockerBuildCmd{Config: "test", ExtraFlags: []string{"--secret", "id=manual,env=MANUAL_SECRET"}}
+			runner.Run(cli, ctx) //nolint:errcheck
+			Expect(len(RanCmds)).To(Equal(1))
+			Expect(RanCmds[0].String()).To(ContainSubstring("--secret id=manual,env=MANUAL_SECRET"))
+			Expect(RanCmds[0].String()).ToNot(ContainSubstring("--secret id=discourse-smtp-password,env=DISCOURSE_SMTP_PASSWORD"))
 		})
 
 		It("Should run docker migrate with correct arguments", func() {

@@ -63,7 +63,7 @@ EXPOSE 443
 EXPOSE 80
 EXPOSE 90
 COPY config.yaml /temp-config.yaml
-RUN cat /temp-config.yaml | /usr/local/bin/pups  --stdin && rm /temp-config.yaml
+RUN --mount=type=secret,id=discourse-smtp-password,target=/run/secrets/smtp-password cat /temp-config.yaml | /usr/local/bin/pups  --stdin && rm /temp-config.yaml
 CMD ["/sbin/boot"]`))
 	})
 
@@ -96,7 +96,7 @@ EXPOSE 443
 EXPOSE 80
 EXPOSE 90
 COPY config.yaml /temp-config.yaml
-RUN cat /temp-config.yaml | /usr/local/bin/pups  --stdin && rm /temp-config.yaml
+RUN --mount=type=secret,id=discourse-smtp-password,target=/run/secrets/smtp-password cat /temp-config.yaml | /usr/local/bin/pups  --stdin && rm /temp-config.yaml
 CMD ["/sbin/boot"]`))
 	})
 
@@ -124,8 +124,21 @@ EXPOSE 443
 EXPOSE 80
 EXPOSE 90
 COPY config.yaml /temp-config.yaml
-RUN --mount=type=bind,from=volume_0,source=/,target=/shared,rw=true --mount=type=bind,from=volume_1,source=/,target=/var/log,rw=true cat /temp-config.yaml | /usr/local/bin/pups  --stdin && rm /temp-config.yaml
+RUN --mount=type=bind,from=volume_0,source=/,target=/shared,rw=true --mount=type=bind,from=volume_1,source=/,target=/var/log,rw=true --mount=type=secret,id=discourse-smtp-password,target=/run/secrets/smtp-password cat /temp-config.yaml | /usr/local/bin/pups  --stdin && rm /temp-config.yaml
 CMD ["/sbin/boot"]`))
+	})
+
+	It("can generate a dockerfile that includes secret mounts", func() {
+		dockerfile := conf.Dockerfile("", false, false, "config.yaml")
+		Expect(dockerfile).To(ContainSubstring("RUN --mount=type=secret,id=discourse-smtp-password,target=/run/secrets/smtp-password cat /temp-config.yaml | /usr/local/bin/pups  --stdin && rm /temp-config.yaml"))
+	})
+
+	It("accepts object secrets with explicit ids", func() {
+		configWithDerivedSecret, err := config.LoadConfig("../test/containers", "test", true, "../test")
+		Expect(err).To(BeNil())
+		Expect(configWithDerivedSecret.Secrets).To(HaveLen(1))
+		Expect(configWithDerivedSecret.Secrets[0].ID).To(Equal("discourse-smtp-password"))
+		Expect(configWithDerivedSecret.Secrets[0].Env).To(Equal("DISCOURSE_SMTP_PASSWORD"))
 	})
 
 	Context("hostname tests", func() {

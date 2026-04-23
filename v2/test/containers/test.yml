@@ -94,6 +94,11 @@ volumes:
       host: /var/discourse/shared/web-only/log/var-log
       guest: /var/log
 
+secrets:
+  - id: discourse-smtp-password
+    env: DISCOURSE_SMTP_PASSWORD
+    target: /run/secrets/smtp-password
+
 ## Plugins go here
 ## see https://meta.discourse.org/t/19157 for details
 hooks:
